@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Exploding Simulation | Physics-Preserved Learning</title>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Slate 900 */
+            color: #e2e8f0; /* Slate 200 */
+            overflow-x: hidden;
+        }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        canvas { touch-action: none; }
+        .glow { box-shadow: 0 0 20px rgba(248, 113, 113, 0.2); }
+        .glow-green { box-shadow: 0 0 20px rgba(52, 211, 153, 0.2); }
+        
+        /* Range Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            margin-top: -8px;
+            cursor: pointer;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: #334155;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- ICONS ---
+        const Play = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>;
+        const Pause = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>;
+        const RefreshCw = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>;
+        const AlertCircle = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>;
+        const CheckCircle = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>;
+
+        // --- PARTICLE SYSTEM ---
+        const CanvasSize = 280;
+        const ParticleCount = 40;
+        
+        const SimulationPanel = ({ type, timeStep, isPlaying }) => {
+            const canvasRef = useRef(null);
+            const particlesRef = useRef([]);
+            const animationRef = useRef(null);
+
+            // Initialize Particles
+            useEffect(() => {
+                const parts = [];
+                for(let i=0; i<ParticleCount; i++) {
+                    parts.push({
+                        x: Math.random() * CanvasSize,
+                        y: Math.random() * CanvasSize,
+                        vx: (Math.random() - 0.5) * 2,
+                        vy: (Math.random() - 0.5) * 2,
+                        color: type === 'ai' ? '#60a5fa' : '#34d399', // Start blue/green
+                        baseSpeed: 1
+                    });
+                }
+                particlesRef.current = parts;
+            }, [type]); // Re-init if type changes
+
+            // Render Loop based on timeStep prop
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                
+                // Calculate "Error Factor" based on TimeStep
+                // Standard AI: Error accumulates exponentially after t=50
+                // Our Method: Error stays 0
+                let errorFactor = 1.0;
+                let color = type === 'ai' ? '#60a5fa' : '#34d399';
+                let jitter = 0;
+
+                if (type === 'ai') {
+                    if (timeStep > 50) {
+                        // Mild drift
+                        errorFactor = 1 + ((timeStep - 50) * 0.005); 
+                        color = '#a78bfa'; // Purple warning
+                    }
+                    if (timeStep > 150) {
+                        // Explosion
+                        errorFactor = 1 + ((timeStep - 50) * 0.02);
+                        color = '#f87171'; // Red danger
+                        jitter = (timeStep - 150) * 0.05;
+                    }
+                }
+
+                // Clear
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(0, 0, CanvasSize, CanvasSize);
+                
+                // Grid
+                ctx.strokeStyle = '#1e293b';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                for(let i=0; i<=CanvasSize; i+=40) {
+                    ctx.moveTo(i, 0); ctx.lineTo(i, CanvasSize);
+                    ctx.moveTo(0, i); ctx.lineTo(CanvasSize, i);
+                }
+                ctx.stroke();
+
+                // Update & Draw Particles
+                particlesRef.current.forEach(p => {
+                    // Update Position (Simulated based on timeStep logic)
+                    // We aren't running a physics engine per frame here to keep it synced to slider.
+                    // Instead, we animate "noise" based on the errorFactor.
+                    
+                    // Move
+                    p.x += p.vx * errorFactor;
+                    p.y += p.vy * errorFactor;
+
+                    // Jitter (The explosion effect)
+                    if (jitter > 0) {
+                        p.x += (Math.random() - 0.5) * jitter;
+                        p.y += (Math.random() - 0.5) * jitter;
+                    }
+
+                    // Bounce
+                    if (p.x < 0 || p.x > CanvasSize) p.vx *= -1;
+                    if (p.y < 0 || p.y > CanvasSize) p.vy *= -1;
+
+                    // Keep inside visually
+                    if (p.x < 0) p.x = 0; if (p.x > CanvasSize) p.x = CanvasSize;
+                    if (p.y < 0) p.y = 0; if (p.y > CanvasSize) p.y = CanvasSize;
+
+                    // Draw
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
+                    ctx.fillStyle = color;
+                    ctx.fill();
+                });
+
+                // Request next frame ONLY if playing (to animate movement at current error level)
+                if (isPlaying) {
+                    animationRef.current = requestAnimationFrame(() => {}); // Just triggers re-render via parent state usually, 
+                    // but here we are cheating a bit. 
+                    // To make particles move, we need to persist velocity. 
+                    // Since this component re-renders when timeStep changes, we rely on the loop.
+                }
+
+            }, [timeStep, isPlaying, type]);
+
+            return (
+                <div className={`relative rounded-xl border-2 overflow-hidden bg-slate-900 ${type === 'ai' && timeStep > 150 ? 'border-red-500 glow' : (type === 'ours' ? 'border-emerald-500/50' : 'border-slate-700')}`}>
+                    <canvas ref={canvasRef} width={CanvasSize} height={CanvasSize} className="w-full h-full block" />
+                    
+                    {/* Overlay Label */}
+                    <div className="absolute top-3 left-3 bg-slate-900/80 px-3 py-1 rounded text-xs font-bold font-mono text-white backdrop-blur border border-slate-700">
+                        {type === 'ai' ? 'Standard GNN' : 'Our Method (ASCC)'}
+                    </div>
+
+                    {/* Status Indicator */}
+                    <div className="absolute bottom-3 right-3">
+                        {type === 'ai' && timeStep > 150 ? (
+                            <div className="flex items-center gap-2 text-red-400 bg-red-900/20 px-2 py-1 rounded border border-red-500/50">
+                                <AlertCircle size={14} /> <span className="text-xs font-bold">UNSTABLE</span>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2 text-emerald-400 bg-emerald-900/20 px-2 py-1 rounded border border-emerald-500/50">
+                                <CheckCircle size={14} /> <span className="text-xs font-bold">STABLE</span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        // --- ERROR GRAPH ---
+        const ErrorGraph = ({ timeStep }) => {
+            const width = 600;
+            const height = 150;
+            const maxTime = 300;
+            
+            // Generate Path for AI (Exponential)
+            const aiPath = [];
+            for(let t=0; t<=maxTime; t+=5) {
+                let y = 140; // Bottom
+                if (t > 50) {
+                    // Exponential growth
+                    const growth = Math.pow((t-50)/80, 3) * 10;
+                    y = 140 - growth;
+                }
+                if (y < 10) y = 10; // Cap at top
+                aiPath.push(`${t/maxTime * width},${y}`);
+            }
+
+            // Generate Path for Ours (Flat)
+            const oursPath = [];
+            for(let t=0; t<=maxTime; t+=5) {
+                oursPath.push(`${t/maxTime * width},${138}`); // Stays low
+            }
+
+            const currentX = (timeStep / maxTime) * width;
+
+            return (
+                <div className="w-full bg-slate-900 border border-slate-700 rounded-xl p-4 mt-6 relative overflow-hidden">
+                    <h4 className="text-xs font-mono text-slate-400 mb-2 uppercase tracking-widest">Figure 4: Momentum Drift (Normalized Error)</h4>
+                    <svg width="100%" height="150" viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
+                        {/* Axes */}
+                        <line x1="0" y1="140" x2={width} y2="140" stroke="#334155" strokeWidth="2" />
+                        <line x1="0" y1="0" x2="0" y2="140" stroke="#334155" strokeWidth="2" />
+                        
+                        {/* AI Line (Red) */}
+                        <polyline points={aiPath.join(' ')} fill="none" stroke="#f87171" strokeWidth="3" />
+                        <text x={width-60} y="20" fill="#f87171" fontSize="12" fontWeight="bold">Standard AI</text>
+
+                        {/* Ours Line (Green) */}
+                        <polyline points={oursPath.join(' ')} fill="none" stroke="#34d399" strokeWidth="3" />
+                        <text x={width-60} y="130" fill="#34d399" fontSize="12" fontWeight="bold">Ours</text>
+
+                        {/* Current Time Indicator */}
+                        <line x1={currentX} y1="0" x2={currentX} y2="140" stroke="#fff" strokeWidth="1" strokeDasharray="4,4" />
+                        <circle cx={currentX} cy={140} r="4" fill="#fff" />
+                    </svg>
+                </div>
+            );
+        };
+
+        // --- MAIN APP ---
+        const App = () => {
+            const [timeStep, setTimeStep] = useState(0); // 0 to 300
+            const [isPlaying, setIsPlaying] = useState(false);
+            const timerRef = useRef(null);
+
+            // Auto-Play Logic
+            useEffect(() => {
+                if (isPlaying) {
+                    timerRef.current = setInterval(() => {
+                        setTimeStep(prev => {
+                            if (prev >= 300) {
+                                setIsPlaying(false);
+                                return 300;
+                            }
+                            return prev + 2;
+                        });
+                    }, 30);
+                } else {
+                    clearInterval(timerRef.current);
+                }
+                return () => clearInterval(timerRef.current);
+            }, [isPlaying]);
+
+            return (
+                <div className="min-h-screen pb-20">
+                     {/* Header */}
+                     <header className="px-6 py-8 border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
+                        <div className="max-w-4xl mx-auto flex justify-between items-center">
+                            <div>
+                                <h1 className="text-xl font-bold tracking-tight text-white">Research Journey</h1>
+                                <p className="text-xs text-slate-400 font-mono">PART 3: THE EXPLODING SIMULATION</p>
+                            </div>
+                            <div className="flex gap-4 text-sm font-medium">
+                                <span className="text-slate-400">Week 1 of 52</span>
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="max-w-3xl mx-auto px-6 mt-12">
+                        {/* Title Section */}
+                        <div className="text-center mb-12">
+                            <h2 className="text-4xl font-extrabold text-white mb-4">
+                                My simulation looked perfect for <br/> <span className="text-blue-400">50 frames</span>.
+                            </h2>
+                            <h3 className="text-2xl font-bold text-red-400 mb-6">
+                                Then it exploded.
+                            </h3>
+                            <p className="text-slate-400 max-w-xl mx-auto">
+                                The hidden danger of "Soft Constraints" in AI physics is that they don't work forever. Eventually, the math catches up.
+                            </p>
+                        </div>
+
+                        {/* Controls */}
+                        <div className="bg-slate-800 p-6 rounded-t-2xl border-t border-l border-r border-slate-700 flex flex-col items-center">
+                            <div className="w-full flex items-center gap-6 mb-4">
+                                <button 
+                                    onClick={() => setIsPlaying(!isPlaying)}
+                                    className="p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-lg transition-transform hover:scale-105 active:scale-95"
+                                >
+                                    {isPlaying ? <Pause size={24} /> : <Play size={24} />}
+                                </button>
+                                
+                                <div className="flex-1 flex flex-col">
+                                    <div className="flex justify-between text-xs font-mono text-slate-400 mb-2">
+                                        <span>Time: T={timeStep}</span>
+                                        <span>{timeStep < 50 ? "Stable Zone" : (timeStep < 150 ? "Drift Starting..." : "CRITICAL FAILURE")}</span>
+                                    </div>
+                                    <input 
+                                        type="range" 
+                                        min="0" max="300" 
+                                        value={timeStep} 
+                                        onChange={(e) => setTimeStep(Number(e.target.value))}
+                                        className="w-full"
+                                    />
+                                </div>
+
+                                <button 
+                                    onClick={() => {setIsPlaying(false); setTimeStep(0);}}
+                                    className="p-2 text-slate-500 hover:text-white transition-colors"
+                                    title="Reset"
+                                >
+                                    <RefreshCw size={20} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Visuals */}
+                        <div className="grid grid-cols-2 gap-4 bg-slate-800/50 p-4 rounded-b-2xl border-b border-l border-r border-slate-700">
+                            <SimulationPanel type="ai" timeStep={timeStep} isPlaying={isPlaying || timeStep > 0} />
+                            <SimulationPanel type="ours" timeStep={timeStep} isPlaying={isPlaying || timeStep > 0} />
+                        </div>
+
+                        {/* Graph */}
+                        <ErrorGraph timeStep={timeStep} />
+
+                        {/* Explanation */}
+                        <div className="mt-12 grid md:grid-cols-2 gap-8 text-sm">
+                            <div className="bg-slate-900/50 p-6 rounded-xl border border-red-900/30">
+                                <h4 className="text-red-400 font-bold mb-2 flex items-center gap-2">
+                                    <AlertCircle size={16} /> Why Soft Constraints Fail
+                                </h4>
+                                <p className="text-slate-400 leading-relaxed">
+                                    Standard AI adds physics to the "Loss Function" (e.g., <span className="font-mono bg-slate-800 px-1 rounded">Loss = Prediction + Physics_Penalty</span>).
+                                </p>
+                                <p className="text-slate-400 leading-relaxed mt-2">
+                                    The problem? The network is lazy. It minimizes the penalty but doesn't eliminate it. Small errors (0.001%) accumulate every frame. By frame 200, they compound into an explosion.
+                                </p>
+                            </div>
+                            
+                            <div className="bg-slate-900/50 p-6 rounded-xl border border-emerald-900/30">
+                                <h4 className="text-emerald-400 font-bold mb-2 flex items-center gap-2">
+                                    <CheckCircle size={16} /> The Architectural Fix
+                                </h4>
+                                <p className="text-slate-400 leading-relaxed">
+                                    We didn't just ask the network to "try" to conserve momentum. We built it into the layers using <strong>Antisymmetric Kernels</strong>.
+                                </p>
+                                <p className="text-slate-400 leading-relaxed mt-2">
+                                    Mathematically, the internal forces <em>must</em> sum to zero. The network cannot violate physics, even if it has random weights.
+                                </p>
+                            </div>
+                        </div>
+
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
