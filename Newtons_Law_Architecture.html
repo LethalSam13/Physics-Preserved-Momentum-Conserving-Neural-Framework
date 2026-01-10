@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Newton's Law Architecture | Physics-Preserved Learning</title>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Slate 900 */
+            color: #e2e8f0; /* Slate 200 */
+            overflow-x: hidden;
+        }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        .glow-blue { box-shadow: 0 0 20px rgba(96, 165, 250, 0.2); }
+        .glow-green { box-shadow: 0 0 20px rgba(52, 211, 153, 0.2); }
+        
+        /* Custom Slider */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            margin-top: -10px;
+            cursor: grab;
+            border: 2px solid #334155;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            background: #334155;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- ICONS ---
+        const Scale = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg>;
+        const Repeat = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>;
+        const Check = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polyline points="20 6 9 17 4 12"/></svg>;
+        const XCircle = (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>;
+
+        // --- INTERACTIVE ARCHITECTURE DEMO ---
+        const ArchitectureDemo = () => {
+            const [mode, setMode] = useState('standard'); // 'standard' or 'ascc'
+            const [forceValue, setForceValue] = useState(50); // The "Learned" Weight
+            const [reactionValue, setReactionValue] = useState(-20); // The "Reaction" (independent in standard)
+
+            // In ASCC mode, reaction is always -force
+            const actualReaction = mode === 'ascc' ? -forceValue : reactionValue;
+            
+            const isBalanced = Math.abs(forceValue + actualReaction) < 1;
+
+            return (
+                <div className="bg-slate-800/50 rounded-2xl border border-slate-700 p-6 glow-blue transition-all duration-500">
+                    {/* Header / Toggle */}
+                    <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+                        <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                            <Scale className={mode === 'ascc' ? "text-emerald-400" : "text-blue-400"} />
+                            Interaction Kernel
+                        </h3>
+                        <div className="bg-slate-900 p-1 rounded-lg border border-slate-700 flex">
+                            <button 
+                                onClick={() => setMode('standard')}
+                                className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${mode === 'standard' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                            >
+                                Standard CNN
+                            </button>
+                            <button 
+                                onClick={() => setMode('ascc')}
+                                className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${mode === 'ascc' ? 'bg-emerald-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+                            >
+                                Our Method (ASCC)
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* The Visual Stage */}
+                    <div className="flex justify-center items-center gap-12 mb-12 h-40 relative">
+                        
+                        {/* Particle A */}
+                        <div className="relative z-10 text-center">
+                            <div className="w-16 h-16 rounded-full bg-slate-700 border-2 border-slate-500 flex items-center justify-center text-xl font-bold text-white shadow-xl">
+                                A
+                            </div>
+                        </div>
+
+                        {/* Interaction Zone (Arrows) */}
+                        <div className="relative w-48 h-full flex flex-col justify-center items-center">
+                            
+                            {/* Action Force (A -> B) */}
+                            <div className="absolute top-1/2 left-0 w-full flex items-center transform -translate-y-4">
+                                <div className="text-xs font-mono text-blue-300 absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                                    Force A→B: {forceValue}
+                                </div>
+                                <div 
+                                    className="h-2 bg-blue-500 rounded-full transition-all duration-100 origin-left shadow-[0_0_10px_rgba(59,130,246,0.5)]"
+                                    style={{ width: `${Math.abs(forceValue)}%`, marginLeft: '50%' }}
+                                ></div>
+                                {/* Arrowhead */}
+                                <div 
+                                    className="w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-l-[8px] border-l-blue-500 absolute transition-all duration-100"
+                                    style={{ left: `calc(50% + ${Math.abs(forceValue)}%)` }}
+                                ></div>
+                            </div>
+
+                            {/* Reaction Force (B -> A) */}
+                            <div className="absolute top-1/2 left-0 w-full flex items-center transform translate-y-4">
+                                <div className={`text-xs font-mono absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap ${mode === 'ascc' ? 'text-emerald-300' : 'text-red-300'}`}>
+                                    Force B→A: {actualReaction}
+                                </div>
+                                <div 
+                                    className={`h-2 rounded-full transition-all duration-100 origin-right absolute right-1/2 ${mode === 'ascc' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-red-500'}`}
+                                    style={{ width: `${Math.abs(actualReaction)}%` }}
+                                ></div>
+                                {/* Arrowhead (Facing Left) */}
+                                <div 
+                                    className={`w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[8px] absolute transition-all duration-100 right-1/2 ${mode === 'ascc' ? 'border-r-emerald-500' : 'border-r-red-500'}`}
+                                    style={{ right: `calc(50% + ${Math.abs(actualReaction)}%)` }}
+                                ></div>
+                            </div>
+                        </div>
+
+                        {/* Particle B */}
+                        <div className="relative z-10 text-center">
+                            <div className="w-16 h-16 rounded-full bg-slate-700 border-2 border-slate-500 flex items-center justify-center text-xl font-bold text-white shadow-xl">
+                                B
+                            </div>
+                        </div>
+
+                    </div>
+
+                    {/* Controls & Math */}
+                    <div className="bg-slate-900 rounded-xl p-6 border border-slate-800">
+                        <div className="grid md:grid-cols-2 gap-8 items-start">
+                            
+                            {/* Sliders */}
+                            <div>
+                                <label className="block text-sm font-bold text-blue-400 mb-2 flex justify-between">
+                                    <span>"Learned" Weight (Action)</span>
+                                    <span>{forceValue}</span>
+                                </label>
+                                <input 
+                                    type="range" min="0" max="100" value={forceValue}
+                                    onChange={(e) => setForceValue(Number(e.target.value))}
+                                    className="w-full mb-6 accent-blue-500"
+                                />
+
+                                <div className={`transition-opacity duration-300 ${mode === 'ascc' ? 'opacity-30 pointer-events-none grayscale' : 'opacity-100'}`}>
+                                    <label className="block text-sm font-bold text-red-400 mb-2 flex justify-between">
+                                        <span>Independent Weight (Reaction)</span>
+                                        <span>{reactionValue}</span>
+                                    </label>
+                                    <input 
+                                        type="range" min="-100" max="0" value={reactionValue}
+                                        onChange={(e) => setReactionValue(Number(e.target.value))}
+                                        className="w-full accent-red-500"
+                                    />
+                                    <p className="text-xs text-slate-500 mt-2 italic">
+                                        *In Standard AI, these two weights are learned separately. They rarely match.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Status Panel */}
+                            <div className="bg-slate-950 rounded-lg p-4 border border-slate-800 h-full flex flex-col justify-center">
+                                <div className="text-xs uppercase tracking-widest text-slate-500 mb-2">System Status</div>
+                                
+                                <div className="flex justify-between items-center mb-2 font-mono text-sm">
+                                    <span className="text-slate-400">Net Force (ΣF):</span>
+                                    <span className={isBalanced ? "text-emerald-400" : "text-red-400 font-bold"}>
+                                        {forceValue + actualReaction}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between items-center mb-4 font-mono text-sm">
+                                    <span className="text-slate-400">Momentum:</span>
+                                    <span className={isBalanced ? "text-emerald-400" : "text-red-400 font-bold"}>
+                                        {isBalanced ? "CONSERVED" : "VIOLATED"}
+                                    </span>
+                                </div>
+
+                                {mode === 'ascc' ? (
+                                    <div className="mt-auto bg-emerald-900/20 text-emerald-300 p-3 rounded text-sm border border-emerald-500/30 flex items-start gap-2">
+                                        <Check className="shrink-0 w-5 h-5" />
+                                        <div>
+                                            <strong>Locked:</strong> The reaction is mathematically forced to be <span className="font-mono">-{forceValue}</span>.
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="mt-auto bg-red-900/20 text-red-300 p-3 rounded text-sm border border-red-500/30 flex items-start gap-2">
+                                        <XCircle className="shrink-0 w-5 h-5" />
+                                        <div>
+                                            <strong>Drifting:</strong> Weights are independent. Physics is broken.
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- MATH EXPLANATION COMPONENT ---
+        const MathVisualizer = () => {
+            return (
+                <div className="grid md:grid-cols-2 gap-8 mt-12">
+                    {/* The Visual Formula */}
+                    <div className="bg-slate-900/50 p-6 rounded-xl border border-slate-700">
+                         <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6">Visualizing Equation (2)</h4>
+                         
+                         <div className="flex items-center justify-center gap-2 text-white font-mono text-lg md:text-xl flex-wrap">
+                             <div className="flex flex-col items-center">
+                                 <div className="w-12 h-12 border-2 border-emerald-500 rounded bg-emerald-500/10 flex items-center justify-center text-2xl font-bold">A</div>
+                                 <span className="text-xs text-emerald-400 mt-2">Antisymmetric</span>
+                             </div>
+                             
+                             <span className="text-2xl font-bold">=</span>
+                             
+                             <div className="flex flex-col items-center">
+                                 <div className="w-12 h-12 border-2 border-slate-500 rounded bg-slate-800 flex items-center justify-center text-xl font-bold text-slate-400">W</div>
+                                 <span className="text-xs text-slate-500 mt-2">Base Weight</span>
+                             </div>
+                             
+                             <span className="text-2xl font-bold">-</span>
+                             
+                             <div className="flex flex-col items-center">
+                                 <div className="w-12 h-12 border-2 border-slate-500 rounded bg-slate-800 flex items-center justify-center text-xl font-bold text-slate-400 transform scale-x-[-1]">W</div>
+                                 <span className="text-xs text-slate-500 mt-2">Mirrored</span>
+                             </div>
+                         </div>
+                         
+                         <div className="mt-8 text-center">
+                            <code className="bg-black/50 px-4 py-2 rounded text-emerald-300 font-mono text-sm">
+                                Kernel_Final = Kernel_Base(x) - Kernel_Base(-x)
+                            </code>
+                         </div>
+                    </div>
+
+                    {/* The Text Explanation */}
+                    <div className="flex flex-col justify-center">
+                        <h3 className="text-2xl font-bold text-white mb-4">The "Mirror Trick"</h3>
+                        <p className="text-slate-400 mb-4 leading-relaxed">
+                            How do you force a Neural Network to obey Newton's 3rd Law? You don't ask nicely. You structure the math so it has no choice.
+                        </p>
+                        <ul className="space-y-3">
+                            <li className="flex items-start gap-3 text-slate-300">
+                                <div className="mt-1 bg-blue-500/20 p-1 rounded text-blue-400"><Repeat size={16} /></div>
+                                <span>We take any learned weight matrix <strong>W</strong>.</span>
+                            </li>
+                            <li className="flex items-start gap-3 text-slate-300">
+                                <div className="mt-1 bg-emerald-500/20 p-1 rounded text-emerald-400"><Scale size={16} /></div>
+                                <span>We subtract its mirror image from itself.</span>
+                            </li>
+                            <li className="flex items-start gap-3 text-slate-300">
+                                <div className="mt-1 bg-purple-500/20 p-1 rounded text-purple-400"><Check size={16} /></div>
+                                <span>The result is mathematically guaranteed to be antisymmetric. If index (i,j) is positive, index (j,i) <strong>must</strong> be negative.</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- MAIN APP ---
+        const App = () => {
+            return (
+                <div className="min-h-screen pb-20">
+                     {/* Header */}
+                     <header className="px-6 py-8 border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
+                        <div className="max-w-4xl mx-auto flex justify-between items-center">
+                            <div>
+                                <h1 className="text-xl font-bold tracking-tight text-white">Research Journey</h1>
+                                <p className="text-xs text-slate-400 font-mono">PART 4: THE ARCHITECTURE</p>
+                            </div>
+                            <div className="flex gap-4 text-sm font-medium">
+                                <span className="text-slate-400">Week 1 of 52</span>
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="max-w-4xl mx-auto px-6 mt-12">
+                        {/* Title Section */}
+                        <div className="text-center mb-12">
+                            <h2 className="text-4xl font-extrabold text-white mb-4">
+                                Encoding <span className="gradient-text text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">Newton's 3rd Law</span>
+                            </h2>
+                            <p className="text-lg text-slate-400 max-w-2xl mx-auto">
+                                Sometimes the most advanced AI solution is just 300-year-old physics. Here is the exact mechanism we used to solve the drift.
+                            </p>
+                        </div>
+
+                        {/* Main Interactive Demo */}
+                        <ArchitectureDemo />
+
+                        {/* Math Visualization */}
+                        <MathVisualizer />
+
+                        {/* Footer Teaser */}
+                        <div className="mt-20 border-t border-slate-800 pt-8 text-center">
+                            <p className="text-slate-500 text-sm mb-4">Coming Tomorrow</p>
+                            <h3 className="text-xl font-bold text-white">The Result: 162x Faster Simulations</h3>
+                        </div>
+
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
